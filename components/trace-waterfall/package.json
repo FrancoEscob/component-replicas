@@ -1,0 +1,68 @@
+{
+  "name": "@component-replicas/trace-waterfall",
+  "version": "1.0.0",
+  "description": "Live trace waterfall for AI agent runs: spans, handoffs, search, zoom and a detail popover. Framework-free, with a React wrapper.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./react": {
+      "types": "./react/TraceWaterfall.tsx",
+      "import": "./react/TraceWaterfall.tsx"
+    },
+    "./adapters": {
+      "types": "./src/index.d.ts",
+      "import": "./src/adapters.js"
+    },
+    "./style.css": "./src/trace-waterfall.css",
+    "./dist/*": "./dist/*"
+  },
+  "files": [
+    "src",
+    "react",
+    "dist",
+    "README.md",
+    "element.md"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --format=esm --minify --outfile=dist/trace-waterfall.esm.js && esbuild src/index.js --bundle --format=iife --global-name=TraceWaterfallLib --minify --outfile=dist/trace-waterfall.global.js && esbuild src/trace-waterfall.css --minify --outfile=dist/trace-waterfall.css && python3 build-standalone.py",
+    "dev": "python3 -m http.server 4817",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build:react-demo": "esbuild examples/react-demo.tsx --bundle --minify --format=iife --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outfile=examples/react-demo.js"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.7",
+    "esbuild": "^0.25.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.0"
+  },
+  "keywords": [
+    "trace",
+    "waterfall",
+    "agents",
+    "llm",
+    "opentelemetry",
+    "observability",
+    "timeline",
+    "react"
+  ]
+}

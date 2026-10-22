@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trace Waterfall — live streaming example</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="stylesheet" href="../src/trace-waterfall.css" />
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: start center; padding: 48px 16px; background: #f6f6f5; font: 13px/1.5 Inter, system-ui, sans-serif; color: #18181b; }
+  @media (prefers-color-scheme: dark) { body { background: #0c0c0d; color: #f4f4f5; } }
+  main { width: min(720px, 100%); display: grid; gap: 12px; }
+  p { margin: 0; opacity: .7; }
+  button { justify-self: start; padding: 6px 12px; border-radius: 8px; border: 1px solid #8884; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <p>Spans arrive one by one through <code>upsertSpans()</code> with real timestamps (<code>clock: 'live'</code>, <code>timeUnit: 'ms'</code>). Nothing re-renders: rows patch in place.</p>
+  <div id="host"></div>
+  <button id="again">Run again</button>
+</main>
+<script type="module">
+import { TraceWaterfall } from '../src/index.js';
+import { ICONS } from '../demo/demo-data.js';
+
+let tw, timers = [];
+function run() {
+  timers.forEach(clearTimeout); timers = [];
+  tw?.destroy();
+  const t0 = Date.now();
+  tw = new TraceWaterfall(document.getElementById('host'), {
+    spans: [], icons: ICONS, clock: 'live', timeUnit: 'ms', startedAt: t0, title: 'Live run',
+    onComplete: (s) => console.log('complete', s),
+  });
+  window.tw = tw;
+  // a scripted agent run: [delay ms, span patch]
+  const at = (ms, patch) => timers.push(setTimeout(() => tw.upsertSpans(patch), ms));
+  const T = (ms) => t0 + ms;
+  at(0,    { id: 'root', kind: 'agent', name: 'Support agent', subtitle: 'Opus 5.5', icon: 'claude', start: T(0), end: null, input: 'Refund order #4821' });
+  at(300,  { id: 'think', parentId: 'root', kind: 'model', name: 'Plan', subtitle: 'Opus 5.5', icon: 'claude', start: T(300), end: null });
+  at(1900, { id: 'think', end: T(1900), cost: 0.02, tokensIn: 2100, tokensOut: 310, output: 'Look up the order, check policy, refund' });
+  at(2100, { id: 'lookup', parentId: 'root', kind: 'agent', name: 'Lookup', subtitle: 'Haiku 5.5', icon: 'claude', color: '#5b9cf6', start: T(2100), end: null, input: 'Order #4821' });
+  at(2300, { id: 'db', parentId: 'lookup', kind: 'tool', name: 'Query orders', subtitle: 'Supabase', icon: 'supabase', start: T(2300), end: null, input: 'select * from orders where id = 4821' });
+  at(3400, { id: 'db', end: T(3400), output: '1 row, $48.00, delivered' });
+  at(3500, { id: 'stripe', parentId: 'lookup', kind: 'tool', name: 'Fetch charge', subtitle: 'Stripe', icon: 'stripe', start: T(3500), end: null });
+  at(4700, { id: 'stripe', end: T(4700), status: 'error', error: 'Charge not found in this Stripe account' });
+  at(4900, { id: 'stripe2', parentId: 'lookup', kind: 'tool', name: 'Fetch charge', subtitle: 'Stripe', icon: 'stripe', start: T(4900), end: null });
+  at(6100, { id: 'stripe2', end: T(6100), output: 'ch_3Q… $48.00 captured', cost: 0.001 });
+  at(6300, { id: 'lookup', end: T(6300), output: 'Order and charge found' });
+  at(6500, { id: 'refund', parentId: 'root', kind: 'tool', name: 'Issue refund', subtitle: 'Stripe', icon: 'stripe', start: T(6500), end: null });
+  at(7900, { id: 'refund', end: T(7900), output: 're_1P… $48.00' });
+  at(8000, { id: 'reply', parentId: 'root', kind: 'model', name: 'Write reply', subtitle: 'Opus 5.5', icon: 'claude', start: T(8000), end: null });
+  at(9800, { id: 'reply', end: T(9800), cost: 0.03, tokensIn: 3400, tokensOut: 420, output: 'Refund issued, 5–10 business days' });
+  at(10000, { id: 'root', end: T(10000), output: 'Refunded $48.00 and replied' });
+}
+run();
+document.getElementById('again').onclick = run;
+</script>
+</body>
+</html>

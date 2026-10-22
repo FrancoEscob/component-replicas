@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trace Waterfall — playground</title>
+<link rel="preconnect" href="https://rsms.me/" />
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="stylesheet" href="./src/trace-waterfall.css" />
+<style>
+  :root { color-scheme: light dark; --pg-bg: #f6f6f5; --pg-fg: #18181b; --pg-muted: #71717a; --pg-line: #e4e4e7; --pg-panel: #ffffff; --pg-accent: #18181b; }
+  @media (prefers-color-scheme: dark) { :root { --pg-bg: #0c0c0d; --pg-fg: #f4f4f5; --pg-muted: #a1a1aa; --pg-line: #27272a; --pg-panel: #141416; --pg-accent: #f4f4f5; } }
+  :root[data-pg="light"] { --pg-bg: #f6f6f5; --pg-fg: #18181b; --pg-muted: #71717a; --pg-line: #e4e4e7; --pg-panel: #ffffff; --pg-accent: #18181b; }
+  :root[data-pg="dark"] { --pg-bg: #0c0c0d; --pg-fg: #f4f4f5; --pg-muted: #a1a1aa; --pg-line: #27272a; --pg-panel: #141416; --pg-accent: #f4f4f5; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { display: grid; grid-template-columns: 1fr 340px; background: var(--pg-bg); color: var(--pg-fg); font: 13px/1.45 Inter, ui-sans-serif, system-ui, sans-serif; }
+  main { display: flex; flex-direction: column; min-width: 0; height: 100vh; overflow: auto; }
+  .bar { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--pg-line); position: sticky; top: 0; background: var(--pg-bg); z-index: 5; }
+  .bar h1 { margin: 0; font-size: 13px; font-weight: 600; }
+  .bar .sp { flex: 1; }
+  .bar label { display: flex; align-items: center; gap: 6px; color: var(--pg-muted); }
+  .stage { flex: 1; display: grid; place-items: start center; padding: 56px 24px 80px; }
+  #host { width: var(--stage-w, 640px); max-width: 100%; transition: width .3s cubic-bezier(.22,1,.36,1); }
+  .note { margin-top: 14px; color: var(--pg-muted); font-size: 12px; max-width: 640px; }
+  .note kbd { font: inherit; padding: 0 4px; border: 1px solid var(--pg-line); border-radius: 4px; }
+  aside { height: 100vh; overflow: auto; border-left: 1px solid var(--pg-line); background: var(--pg-panel); }
+  details { border-bottom: 1px solid var(--pg-line); }
+  summary { cursor: pointer; padding: 11px 16px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+  summary::after { content: "+"; color: var(--pg-muted); }
+  details[open] summary::after { content: "–"; }
+  .grp { padding: 0 16px 14px; display: grid; gap: 9px; }
+  .ctl { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; }
+  .ctl > span { color: var(--pg-muted); }
+  .ctl output { font-variant-numeric: tabular-nums; color: var(--pg-fg); min-width: 44px; text-align: right; }
+  .ctl input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--pg-accent); }
+  .ctl input[type=text], .ctl select { grid-column: 1 / -1; width: 100%; padding: 5px 8px; border: 1px solid var(--pg-line); border-radius: 6px; background: transparent; color: inherit; font: inherit; }
+  .ctl input[type=color] { width: 36px; height: 22px; padding: 0; border: 1px solid var(--pg-line); border-radius: 5px; background: none; }
+  .ctl.tog { grid-template-columns: 1fr auto; }
+  .ctl.tog input { accent-color: var(--pg-accent); }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  button.pg { padding: 6px 10px; border: 1px solid var(--pg-line); border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  button.pg:hover { background: color-mix(in srgb, var(--pg-fg) 6%, transparent); }
+  textarea { width: 100%; height: 220px; padding: 8px; border: 1px solid var(--pg-line); border-radius: 6px; background: transparent; color: inherit; font: 11px/1.4 ui-monospace, monospace; resize: vertical; }
+  @media (max-width: 900px) { body { grid-template-columns: 1fr; } aside { height: auto; } main { height: auto; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="bar">
+    <h1>Trace Waterfall</h1>
+    <span class="sp"></span>
+    <label>Ancho <input id="w" type="range" min="320" max="1200" value="640" /> <output id="wo">640px</output></label>
+    <label>Página <select id="pg"><option value="">sistema</option><option value="light">clara</option><option value="dark">oscura</option></select></label>
+  </div>
+  <div class="stage">
+    <div id="host"></div>
+    <p class="note">
+      <kbd>⌘/Ctrl F</kbd> busca · <kbd>Espacio</kbd> play/pausa (con foco dentro) · <kbd>Ctrl/⌘ + rueda</kbd> o pinch hace zoom sobre el timeline ·
+      <kbd>Shift + rueda</kbd> / scroll horizontal hace pan · doble clic en el eje resetea el zoom · arrastrá el divisor entre columnas ·
+      clic en una barra abre el detalle; <kbd>← →</kbd> navega entre spans, <kbd>Esc</kbd> cierra.
+    </p>
+  </div>
+</main>
+<aside id="panel"></aside>
+
+<script type="module">
+import { TraceWaterfall, DEFAULTS } from './src/trace-waterfall.js';
+import { SPANS, ICONS } from './demo/demo-data.js';
+
+const AGENT_IDS = ['researcher', 'writer', 'coder', 'launcher'];
+const spans = SPANS.map((s) => ({ ...s }));
+const cfg = { spans, icons: ICONS, tokens: {} };
+const tw = new TraceWaterfall(document.getElementById('host'), cfg);
+window.tw = tw;
+
+const get = (obj, path) => path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
+const deepSet = (obj, path, v) => { const ks = path.split('.'); let o = obj; ks.slice(0, -1).forEach((k) => (o = o[k] ??= {})); o[ks.at(-1)] = v; };
+const current = (path) => get(cfg, path) ?? get(DEFAULTS, path);
+const copy = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, copy(x)])) : Array.isArray(v) ? v.slice() : v);
+
+function apply(path, value) {
+  if (path.startsWith('tokens.')) {
+    cfg.tokens[path.slice(7)] = value;
+    tw.update({ tokens: { ...cfg.tokens } });
+    return;
+  }
+  if (path.startsWith('color.')) {
+    const id = path.slice(6);
+    spans.find((s) => s.id === id).color = value;
+    tw.update({ spans: spans.map((s) => ({ ...s })) });
+    return;
+  }
+  deepSet(cfg, path, value);
+  const top = path.split('.')[0];
+  if (top === 'speed') return tw.setSpeed(value);
+  if (top === 'theme') return tw.setTheme(value);
+  tw.update({ [top]: copy(cfg[top]) });
+}
+
+const panel = document.getElementById('panel');
+const group = (title, open) => { const d = document.createElement('details'); d.open = !!open; d.innerHTML = `<summary>${title}</summary>`; const g = document.createElement('div'); g.className = 'grp'; d.append(g); panel.append(d); return g; };
+function range(g, label, path, min, max, step, unit = '', read = current, onChange = apply) {
+  const w = document.createElement('label'); w.className = 'ctl';
+  const v = read(path);
+  w.innerHTML = `<span>${label}</span><output>${v}${unit}</output><input type="range" min="${min}" max="${max}" step="${step}" value="${v}">`;
+  const i = w.querySelector('input'), o = w.querySelector('output');
+  i.addEventListener('input', () => { o.textContent = i.value + unit; });
+  i.addEventListener('change', () => onChange(path, +i.value));
+  g.append(w); return i;
+}
+function toggle(g, label, path) {
+  const w = document.createElement('label'); w.className = 'ctl tog';
+  w.innerHTML = `<span>${label}</span><input type="checkbox" ${current(path) ? 'checked' : ''}>`;
+  w.querySelector('input').addEventListener('change', (e) => apply(path, e.target.checked));
+  g.append(w);
+}
+function select(g, label, path, options, parse = (x) => x) {
+  const w = document.createElement('label'); w.className = 'ctl';
+  w.innerHTML = `<span>${label}</span><span></span><select>${options.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>`;
+  const s = w.querySelector('select'); s.value = String(current(path));
+  s.addEventListener('change', () => apply(path, parse(s.value)));
+  g.append(w);
+}
+function text(g, label, path, value) {
+  const w = document.createElement('label'); w.className = 'ctl';
+  w.innerHTML = `<span>${label}</span><span></span><input type="text" value="${(value ?? current(path) ?? '').toString().replace(/"/g, '&quot;')}">`;
+  w.querySelector('input').addEventListener('change', (e) => apply(path, e.target.value));
+  g.append(w);
+}
+function color(g, label, path, value) {
+  const w = document.createElement('label'); w.className = 'ctl';
+  w.innerHTML = `<span>${label}</span><input type="color" value="${value}">`;
+  w.querySelector('input').addEventListener('change', (e) => apply(path, e.target.value));
+  g.append(w);
+}
+const tokMs = (name, dflt) => [`tokens.${name}`, dflt];
+function msRange(g, label, name, dflt, max = 2000) {
+  range(g, label, `tokens.${name}`, 0, max, 10, 'ms', () => parseFloat(cfg.tokens[name] ?? dflt), (p, v) => apply(p, `${v}ms`));
+}
+
+/* ---- Reproducción */
+let g = group('Reproducción', true);
+const btns = document.createElement('div'); btns.className = 'btns';
+btns.innerHTML = '<button class="pg" data-a="toggle">Play / pausa</button><button class="pg" data-a="replay">Replay</button><button class="pg" data-a="end">Ir al final</button><button class="pg" data-a="zoom">Reset zoom</button>';
+btns.addEventListener('click', (e) => { const a = e.target.dataset.a; if (a === 'toggle') tw.toggle(); if (a === 'replay') tw.replay(); if (a === 'end') { tw.pause(); tw.seek(tw.end); } if (a === 'zoom') tw.resetZoom(); });
+g.append(btns);
+const seek = document.createElement('label'); seek.className = 'ctl';
+seek.innerHTML = `<span>Posición (s)</span><output>0</output><input type="range" min="0" max="${tw.end}" step="0.1" value="0">`;
+const si = seek.querySelector('input'), so = seek.querySelector('output');
+si.addEventListener('input', () => { tw.pause(); tw.seek(+si.value); });
+g.append(seek);
+setInterval(() => { if (document.activeElement !== si) { si.max = tw.end; si.value = tw.now; } so.textContent = tw.now.toFixed(1); }, 100);
+select(g, 'Velocidad', 'speed', DEFAULTS.speeds.map((x) => [x, `${x}x`]), Number);
+range(g, 'Escala de tiempo (s de traza por s real a 1x)', 'timeScale', 0.25, 12, 0.05);
+toggle(g, 'Autoplay al montar', 'autoplay');
+toggle(g, 'Loop al terminar', 'loop');
+range(g, 'Pausa antes del loop', 'loopDelay', 0, 5000, 100, 'ms');
+range(g, 'Throttle de números del header', 'motion.statThrottle', 0, 2000, 50, 'ms');
+
+/* ---- Tema y tipografía */
+g = group('Tema y tipografía');
+select(g, 'Tema', 'theme', [['system', 'Sistema'], ['light', 'Claro'], ['dark', 'Oscuro']]);
+text(g, 'Título', 'title');
+text(g, 'Fuente (CSS font-family)', 'tokens.--tw-font', 'Inter, ui-sans-serif, system-ui, sans-serif');
+range(g, 'Tamaño base', 'tokens.--tw-font-size', 11, 18, 1, 'px', () => parseFloat(cfg.tokens['--tw-font-size'] ?? 14), (p, v) => apply(p, `${v}px`));
+range(g, 'Peso semibold', 'tokens.--tw-weight-semibold', 400, 800, 100, '', () => +(cfg.tokens['--tw-weight-semibold'] ?? 600), (p, v) => apply(p, String(v)));
+
+/* ---- Colores */
+g = group('Colores');
+for (const id of AGENT_IDS) color(g, `Agente: ${spans.find((s) => s.id === id).name}`, `color.${id}`, spans.find((s) => s.id === id).color);
+const toks = [['--tw-card', 'Card', '#ffffff'], ['--tw-background', 'Fondo íconos', '#ffffff'], ['--tw-foreground', 'Texto', '#0a0a0a'], ['--tw-muted-foreground', 'Texto atenuado', '#737373'], ['--tw-border', 'Bordes', '#e5e5e5'], ['--tw-destructive', 'Error', '#e7000b'], ['--tw-amber-fg', 'Resaltado (texto)', '#a16207'], ['--tw-ring', 'Ring / divisor', '#8a8a8a']];
+for (const [k, l, d] of toks) color(g, l, `tokens.${k}`, d);
+const rb = document.createElement('div'); rb.className = 'btns'; rb.innerHTML = '<button class="pg">Restaurar tokens de color</button>';
+rb.firstChild.addEventListener('click', () => { for (const [k] of toks) delete cfg.tokens[k]; tw.update({ tokens: { ...cfg.tokens } }); });
+g.append(rb);
+
+/* ---- Barras */
+g = group('Barras (mezcla de color)');
+range(g, 'Model call %', 'mix.model', 0, 100, 1);
+range(g, 'Tool call %', 'mix.tool', 0, 100, 1);
+range(g, 'Hueco / pensando %', 'mix.gap', 0, 100, 1);
+range(g, 'Factor lane neutral (orquestador)', 'mix.neutral', 0, 1, 0.01);
+range(g, 'Rayado "waiting" %', 'mix.hatch', 0, 60, 1);
+range(g, 'Separación del rayado', 'mix.hatchGap', 2, 16, 1, 'px');
+range(g, 'Brillo del shimmer (mezcla con blanco) %', 'mix.glow', 0, 100, 1);
+range(g, 'Brillo hover', 'tokens.--tw-hover-brightness', 1, 2, 0.05, '', () => +(cfg.tokens['--tw-hover-brightness'] ?? 1.25), (p, v) => apply(p, String(v)));
+
+/* ---- Geometría */
+g = group('Geometría');
+range(g, 'Alto de fila', 'layout.rowHeight', 24, 56, 1, 'px');
+range(g, 'Alto barra lane', 'layout.laneBarHeight', 4, 32, 1, 'px');
+range(g, 'Alto barra step', 'layout.stepBarHeight', 4, 32, 1, 'px');
+range(g, 'Radio barra lane', 'layout.laneBarRadius', 0, 16, 1, 'px');
+range(g, 'Radio barra step', 'layout.stepBarRadius', 0, 16, 1, 'px');
+range(g, 'Sangría por nivel', 'layout.indent', 8, 48, 1, 'px');
+range(g, 'Alto máximo (scroll)', 'layout.maxHeight', 160, 1000, 8, 'px');
+range(g, 'Radio de la card', 'layout.radius', 0, 28, 1, 'px');
+range(g, 'Ancho del popover', 'layout.popoverWidth', 240, 520, 4, 'px');
+range(g, 'Ancho mínimo columna nombres', 'layout.minLabel', 80, 320, 4, 'px');
+
+/* ---- Eje de tiempo */
+g = group('Eje de tiempo y zoom');
+range(g, 'Dominio mínimo', 'domain.min', 1, 60, 0.5, 's');
+range(g, 'Holgura (ventana = now × holgura)', 'domain.headroom', 1, 3, 0.01);
+range(g, 'Máx. ticks', 'domain.maxTicks', 2, 12, 0.1);
+toggle(g, 'Zoom / pan', 'zoom.enabled');
+range(g, 'Sensibilidad zoom', 'zoom.wheelFactor', 0.0005, 0.01, 0.0001);
+range(g, 'Dominio mínimo con zoom', 'zoom.minDomain', 0.1, 10, 0.1, 's');
+
+/* ---- Motion */
+g = group('Animación');
+select(g, 'Movimiento reducido', 'motion.reduced', [['auto', 'Auto (sistema)'], ['true', 'Forzar reducido'], ['false', 'Forzar completo']], (v) => (v === 'auto' ? 'auto' : v === 'true'));
+msRange(g, 'Entrada de filas', '--tw-dur-row', 400);
+msRange(g, 'Colapsar / expandir', '--tw-dur-collapse', 260);
+msRange(g, 'Fade ticks / gridlines', '--tw-dur-fade', 200);
+msRange(g, 'Estado (spinner → error)', '--tw-dur-status', 300);
+msRange(g, 'Chevron / play-pausa', '--tw-dur-chevron', 200);
+msRange(g, 'Shimmer de barra activa', '--tw-dur-sweep', 1600, 5000);
+msRange(g, 'Popover (glide + altura)', '--tw-dur-popover', 280);
+msRange(g, 'Morph de números', '--tw-dur-morph', 380);
+msRange(g, 'Hover', '--tw-dur-hover', 150);
+range(g, 'Blur de entrada', 'tokens.--tw-blur-enter', 0, 8, 0.5, 'px', () => parseFloat(cfg.tokens['--tw-blur-enter'] ?? 2), (p, v) => apply(p, `${v}px`));
+text(g, 'Easing principal', 'tokens.--tw-ease', 'cubic-bezier(0.22, 1, 0.36, 1)');
+text(g, 'Easing quint (chevron/colapso)', 'tokens.--tw-ease-quint', 'cubic-bezier(0.23, 1, 0.32, 1)');
+text(g, 'Easing popover', 'tokens.--tw-ease-pop', 'cubic-bezier(0.16, 1, 0.3, 1)');
+text(g, 'Easing shimmer', 'tokens.--tw-ease-sweep', 'cubic-bezier(0.65, 0, 0.35, 1)');
+
+/* ---- Features */
+g = group('Funciones');
+const F = { header: 'Header', search: 'Búsqueda', shortcut: 'Atajo ⌘F', stats: 'Métricas', axis: 'Eje (ticks)', gridlines: 'Líneas de grilla', nowLine: 'Línea "ahora"', nowLineIdle: 'Línea "ahora" al terminar', handoffs: 'Conectores de handoff', slowest: 'Badge "Slowest"', stickyLanes: 'Lanes sticky', popover: 'Popover de detalle', collapse: 'Colapsar lanes', resize: 'Redimensionar columna', figures: 'Duración/costo junto a barras', controls: 'Controles de reproducción', speedSelect: 'Selector de velocidad', legend: 'Leyenda', follow: 'Seguir la última fila', numberMorph: 'Morph de números', treeGuides: 'Guías del árbol', hoverRows: 'Hover de filas', statusIcons: 'Spinner / error en steps', failShake: 'Shake al fallar' };
+for (const [k, l] of Object.entries(F)) toggle(g, l, `features.${k}`);
+
+/* ---- Textos */
+g = group('Textos');
+for (const k of ['search', 'steps', 'duration', 'cost', 'tokens', 'llmCalls', 'toolCalls', 'errors', 'running', 'done', 'failed', 'slowest', 'legendModel', 'legendTool', 'legendWaiting', 'legendHandoff', 'legendFailed', 'emptyTitle']) text(g, k, `labels.${k}`);
+const es = document.createElement('div'); es.className = 'btns'; es.innerHTML = '<button class="pg">Traducir al español</button>';
+es.firstChild.addEventListener('click', () => {
+  Object.assign(cfg.labels ??= {}, { search: 'Buscar', searchAria: 'Buscar pasos', steps: 'Pasos', duration: 'Duración', cost: 'Costo', tokens: 'Tokens', llmCalls: 'Llamadas LLM', toolCalls: 'Herramientas', errors: 'Errores', started: 'Inicio', tokensIn: 'Tokens in', tokensOut: 'Tokens out', spans: 'Spans', input: 'Entrada', output: 'Salida', running: 'En curso', done: 'Listo', failed: 'Falló', slowest: 'Más lento', close: 'Cerrar', play: 'Reproducir', pause: 'Pausar', replay: 'Repetir desde el inicio', speed: 'Velocidad', emptyTitle: 'Ningún paso coincide', emptyText: (q) => `Nada en esta traza coincide con “${q}”`, legendModel: 'Modelo', legendTool: 'Herramienta', legendWaiting: 'Esperando', legendHandoff: 'Traspaso', legendFailed: 'Falló' });
+  tw.update({ labels: { ...cfg.labels } });
+});
+g.append(es);
+
+/* ---- Export */
+g = group('Exportar configuración');
+const ta = document.createElement('textarea'); ta.readOnly = true; g.append(ta);
+const eb = document.createElement('div'); eb.className = 'btns'; eb.innerHTML = '<button class="pg">Actualizar</button><button class="pg">Copiar</button>';
+const dump = () => { const { spans: _s, icons: _i, ...rest } = cfg; ta.value = JSON.stringify(rest, (k, v) => (typeof v === 'function' ? String(v) : v), 2); };
+eb.children[0].addEventListener('click', dump);
+eb.children[1].addEventListener('click', () => { dump(); navigator.clipboard?.writeText(ta.value); });
+g.append(eb); dump();
+
+/* ---- URL params: ?t=33&theme=dark&w=800&q=notion&open=researcher&page=dark */
+const qp = new URLSearchParams(location.search);
+if (qp.has('w')) { document.getElementById('w').value = qp.get('w'); document.getElementById('host').style.setProperty('--stage-w', `${qp.get('w')}px`); document.getElementById('wo').textContent = `${qp.get('w')}px`; }
+if (qp.has('page')) document.documentElement.dataset.pg = qp.get('page');
+if (qp.has('theme')) tw.setTheme(qp.get('theme'));
+if (qp.has('t')) { tw.pause(); tw.seek(+qp.get('t')); }
+if (qp.has('q')) tw.setQuery(qp.get('q'));
+if (qp.has('collapse')) for (const id of qp.get('collapse').split(',')) tw._toggle(id);
+if (qp.has('open')) setTimeout(() => { const r = tw.rows.get(qp.get('open')); r?.laneTrig?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: r.laneTrig.getBoundingClientRect().left + 20, detail: 1 })); }, 300);
+
+/* ---- Stage */
+const w = document.getElementById('w'), wo = document.getElementById('wo');
+w.addEventListener('input', () => { document.getElementById('host').style.setProperty('--stage-w', `${w.value}px`); wo.textContent = `${w.value}px`; });
+document.getElementById('pg').addEventListener('change', (e) => { document.documentElement.dataset.pg = e.target.value; });
+</script>
+</body>
+</html>
