@@ -42,10 +42,10 @@
     }
   },
   "scripts": {
-    "build": "esbuild src/index.js --bundle --format=esm --minify --outfile=dist/trace-waterfall.esm.js && esbuild src/index.js --bundle --format=iife --global-name=TraceWaterfallLib --minify --outfile=dist/trace-waterfall.global.js && esbuild src/trace-waterfall.css --minify --outfile=dist/trace-waterfall.css && python3 build-standalone.py",
+    "build": "esbuild src/index.js --bundle --format=esm --minify --outfile=dist/trace-waterfall.esm.js && esbuild src/index.js --bundle --format=iife --global-name=TraceWaterfallLib --minify --outfile=dist/trace-waterfall.global.js && esbuild src/trace-waterfall.css --minify --outfile=dist/trace-waterfall.css && python3 build-standalone.py && python3 stamp-assets.py",
     "dev": "python3 -m http.server 4817",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "build:react-demo": "esbuild examples/react-demo.tsx --bundle --minify --format=iife --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outfile=examples/react-demo.js"
+    "build:react-demo": "esbuild examples/react-demo.tsx --bundle --minify --format=iife --jsx=automatic --define:process.env.NODE_ENV=\\\"production\\\" --outfile=examples/react-demo.js && python3 stamp-assets.py"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
