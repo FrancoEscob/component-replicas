@@ -105,8 +105,12 @@
 /* ---------------------------------------------------------------- root */
 .tw {
   container: tw / inline-size;
+  /* inline-size containment zeroes the intrinsic width; give shrink-to-fit parents
+     (grid/flex centering, inline-block, fit-content) a sensible size instead of collapsing */
+  contain-intrinsic-inline-size: var(--tw-intrinsic-width, min(720px, 100vw - 32px));
   position: relative;
   width: 100%;
+  max-width: 100%;
   overflow: hidden;
   border: 1px solid var(--tw-border);
   border-radius: var(--tw-radius);
@@ -119,6 +123,7 @@
   color-scheme: light;
 }
 .tw[data-theme="dark"] { color-scheme: dark; }
+.tw, .tw-portal,
 .tw *, .tw *::before, .tw *::after,
 .tw-portal *, .tw-portal *::before, .tw-portal *::after { box-sizing: border-box; }
 .tw button, .tw input, .tw select, .tw-portal button { font: inherit; color: inherit; }
@@ -188,6 +193,7 @@
 .tw-morph { display: inline-block; position: relative; vertical-align: top; white-space: nowrap; transition: width var(--tw-dur-morph) var(--tw-ease); }
 .tw-morph-ch { display: inline-block; position: relative; }
 .tw-morph-ch.is-anim {
+  clip-path: inset(0 -1em);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 .15em, #000 calc(100% - .15em), transparent);
   mask-image: linear-gradient(to bottom, transparent, #000 .15em, #000 calc(100% - .15em), transparent);
 }

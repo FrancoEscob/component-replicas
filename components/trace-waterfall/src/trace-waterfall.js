@@ -188,12 +188,12 @@ class Morph {
       if (a[i] === b[i]) { slot.textContent = b[i]; this.node.append(slot); continue; }
       slot.classList.add('is-anim');
       const inn = el('span', 'tw-morph-in'); inn.textContent = b[i] || '';
-      inn.style.cssText = `translate:0 ${0.55 * dir}em;opacity:0;filter:blur(2px)`;
+      inn.style.cssText = `translate:0 ${0.9 * dir}em;opacity:0;filter:blur(1px)`;
       slot.append(inn);
       if (a[i]) {
         const out = el('span', 'tw-morph-out'); out.textContent = a[i];
         slot.append(out);
-        raf2(() => { out.style.cssText = `translate:0 ${-0.55 * dir}em;opacity:0;filter:blur(2px)`; });
+        raf2(() => { out.style.cssText = `translate:0 ${-0.9 * dir}em;opacity:0;filter:blur(1px)`; });
       }
       raf2(() => { inn.style.cssText = ''; });
       this.node.append(slot);
@@ -564,7 +564,8 @@ export class TraceWaterfall {
     const scroll = el('div', 'tw-scroll', { 'data-slot': 'trace-waterfall-scroll-area' });
     this.viewport = el('div', 'tw-viewport', { tabindex: '0' });
     this.content = el('div', 'tw-content');
-    this.svg = svgEl('svg', { class: 'tw-handoffs', 'aria-hidden': 'true' });
+    // explicit 0×0 so the default 150px SVG box never creates phantom scroll overflow
+    this.svg = svgEl('svg', { class: 'tw-handoffs', 'aria-hidden': 'true', width: '0', height: '0' });
     this.content.append(this.svg);
     this.tree = el('ul', 'tw-tree');
     this.rows = new Map();
@@ -1279,7 +1280,9 @@ export class TraceWaterfall {
     const W = cr.width, lw = this._labelW, tw = W - lw;
     const x = (t) => (this._rtl ? W - lw - ((t - this.vStart) / this.vDomain) * tw : lw + ((t - this.vStart) / this.vDomain) * tw);
     const svg = this.svg;
-    svg.setAttribute('width', W); svg.setAttribute('height', this.content.scrollHeight);
+    // size to the rows, never to scrollHeight (which includes the svg itself and could only grow)
+    const H = this.tree.offsetHeight;
+    if (svg._w !== W || svg._h !== H) { svg._w = W; svg._h = H; svg.setAttribute('width', W); svg.setAttribute('height', H); }
     svg.style.clipPath = this._rtl ? `inset(0 ${lw}px 0 0)` : `inset(0 0 0 ${lw}px)`;
     if (!this._hand) this._hand = new Map();
     const seen = new Set();
